@@ -17,7 +17,7 @@ def get_clean_attrib(attrib):
 
 simulate_emails = True
 general_promo_mode = True
-custom_promo_mode = False
+custom_promo_mode = True
 promo_code = 'PromoTest'
 
 email_list_xlsx = Path(r'D:\TechWork\DJAV\Gmail_Automation\EmailList.xlsx')
@@ -28,12 +28,9 @@ custom_promo_dir = Path(r'D:\TechWork\DJAV\SongoBingo\Files\GeneratedGames\Games
 general_promo_dir = Path(r'D:\TechWork\DJAV\SongoBingo\Files\GeneratedGames\Games_200508_IN\Game_200508_IN_3\Cards')
 sent_promo_dir = Path(r'D:\TechWork\DJAV\SongoBingo\Files\GeneratedGames\Games_200508_IN\Game_200508_IN_5\SentCards')
 
-# Make sent promo directory if it doesnt exist
-sent_promo_dir.mkdir(parents=True, exist_ok=True)
-
-# Get list of cards
-custom_promo_list = os.listdir(custom_promo_dir)
-general_promo_list = os.listdir(general_promo_dir)
+# Define visual separators
+separator_1 = 25 * "~~"
+separator_2 = 25 * "*~"
 
 # Get the email list
 df = pd.read_excel(email_list_xlsx)
@@ -42,26 +39,32 @@ df = pd.read_excel(email_list_xlsx)
 email_body_list = pd.read_excel(email_config_xlsx, sheet_name='Email body')['Messages'].tolist()
 email_subject_list = pd.read_excel(email_config_xlsx, sheet_name='Email subject')['Subjects'].tolist()
 
-# Check if enough promo assets are available
-emails_to_send = df[promo_code].str.contains('yes', case=False).sum()
-if emails_to_send > 0:
-    if custom_promo_mode:
-        if len(custom_promo_list) < emails_to_send:
-            raise Exception('Insufficient number of custom promo assets.')
-else:
-    raise Exception('No emails to send')
-
-# If game code is not present in XLS raise error
+# If promo code is not present in XLS raise error
 if promo_code not in df.columns:
     raise Exception(f'Column with promocode not found in XLS: {promo_code}')
+
+if custom_promo_mode:
+    # Get list of all custom promo assets
+    custom_promo_list = os.listdir(custom_promo_dir)
+
+    # Make sent promo directory if it doesnt exist
+    sent_promo_dir.mkdir(parents=True, exist_ok=True)
+
+    # Check if enough promo assets are available
+    emails_to_send = df[promo_code].str.contains('yes', case=False).sum()
+    if emails_to_send > 0:
+        if len(custom_promo_list) < emails_to_send:
+            raise Exception('Insufficient number of custom promo assets.')
+    else:
+        raise Exception('No emails to send')
+
+if general_promo_mode:
+    # Get list of all general promo assets
+    general_promo_list = os.listdir(general_promo_dir)
 
 # Init
 if not simulate_emails:
     ezgmail.init()
-
-# Define visual separators
-separator_1 = 25 * "~~"
-separator_2 = 25 * "*~"
 
 # Send emails one by one
 card_counter = 0
@@ -95,26 +98,26 @@ for index, row in df.iterrows():
                 if card_counter >= len(custom_promo_list):
                     raise Exception('Insufficient number of cards!')
                 else:
-                    gen_promo = custom_promo_list[card_counter]
-                    if gen_promo in sent_promo_list:
+                    promo_asset = custom_promo_list[card_counter]
+                    if promo_asset in sent_promo_list:
                         card_counter += 1
                     else:
                         card_not_found = False
 
             # Rename card with added first name
-            sent_promo = gen_promo.replace('.png', '') + f'_{firstname}{lastname}.png'.replace(' ', '')
+            sent_promo = promo_asset.replace('.png', '') + f'_{firstname}{lastname}.png'.replace(' ', '')
             sent_promo_path = sent_promo_dir / sent_promo
-            gen_promo_path = custom_promo_dir / gen_promo
+            promo_asset_path = custom_promo_dir / promo_asset
 
             # Copy to sent cards folder
-            shutil.copy(gen_promo_path, sent_promo_path)
+            shutil.copy(promo_asset_path, sent_promo_path)
 
             # Set as attachment for email
             email_attachment_paths += [str(sent_promo_path)]
             email_attachment_files.append(sent_promo)
 
             # Update dataframe
-            df.iloc[index, df.columns.get_loc(promo_code)] = gen_promo
+            df.iloc[index, df.columns.get_loc(promo_code)] = promo_asset
 
         if general_promo_mode:
             # Set as attachment for email
